@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>포물선 운동 물리 시뮬레이션</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- MathJax for rendering physics formulas -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="mathjax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        /* Custom range slider styles */
+        input[type=range] {
+            accent-color: #3b82f6;
+        }
+        /* Canvas glassmorphism styling */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 md:p-6 text-slate-100">
+
+    <header class="max-w-7xl w-full mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-800 pb-4">
+        <div>
+            <h1 class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-teal-300">
+                <i class="fa-solid font-bold fa-atom mr-2 text-blue-400"></i>고등학교 물리 I: 포물선 운동 시뮬레이터
+            </h1>
+            <p class="text-xs md:text-sm text-slate-400 mt-1">공기 저항이 없는 이상적 환경에서의 2차원 등가속도 운동 분석</p>
+        </div>
+        <div class="flex items-center gap-2 bg-slate-800/80 px-4 py-2 rounded-xl border border-slate-700/50 text-xs text-slate-300">
+            <i class="fa-solid fa-earth-americas text-blue-400"></i>
+            <span>중력가속도 <span class="font-mono text-emerald-400 font-bold">g = 9.8 m/s²</span></span>
+        </div>
+    </header>
+
+    <main class="max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
+        
+        <!-- Left Controls Column (4 cols) -->
+        <section class="lg:col-span-4 flex flex-col gap-5">
+            
+            <!-- Controls Box -->
+            <div class="glass-panel p-5 rounded-2xl shadow-xl flex flex-col gap-5">
+                <h2 class="text-lg font-bold border-b border-slate-700/80 pb-2 text-blue-300 flex items-center justify-between">
+                    <span><i class="fa-solid fa-sliders mr-2"></i>발사 조건 설정</span>
+                    <button id="btnResetParams" class="text-xs text-slate-400 hover:text-white transition">
+                        <i class="fa-solid fa-rotate-left mr-1"></i>초기화
+                    </button>
+                </h2>
+
+                <!-- Initial Velocity Slider -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="velocityInput" class="font-medium text-slate-300">초기 속도 (\(v_0\))</label>
+                        <span class="font-mono font-bold text-blue-400 text-base"><span id="valVelocity">30</span> <span class="text-xs text-slate-400">m/s</span></span>
+                    </div>
+                    <input type="range" id="velocityInput" min="1" max="50" step="1" value="30" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                        <span>1 m/s</span>
+                        <span>25 m/s</span>
+                        <span>50 m/s</span>
+                    </div>
+                </div>
+
+                <!-- Launch Angle Slider -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="angleInput" class="font-medium text-slate-300">발사각 (\(\theta\))</label>
+                        <span class="font-mono font-bold text-amber-400 text-base"><span id="valAngle">45</span><span class="text-xs text-slate-400">°</span></span>
+                    </div>
+                    <input type="range" id="angleInput" min="0" max="90" step="1" value="45" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                        <span>0° (수평)</span>
+                        <span>45° (최대사거리)</span>
+                        <span>90° (연직)</span>
+                    </div>
+                </div>
+
+                <!-- Animation Speed Controls -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-sm">
+                        <label for="speedInput" class="font-medium text-slate-300">시뮬레이션 배속</label>
+                        <span class="font-mono font-bold text-emerald-400 text-sm"><span id="valSpeed">1.0</span>x</span>
+                    </div>
+                    <input type="range" id="speedInput" min="0.2" max="3.0" step="0.1" value="1.0" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                </div>
+
+                <!-- Playback Buttons -->
+                <div class="grid grid-cols-3 gap-2 pt-2">
+                    <button id="btnPlay" class="py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-900/40 transition active:scale-95">
+                        <i class="fa-solid fa-play" id="iconPlay"></i>
+                        <span id="txtPlay">발사</span>
+                    </button>
+                    <button id="btnPause" class="py-2.5 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-50" disabled>
+                        <i class="fa-solid fa-pause"></i>
+                        <span>일시정지</span>
+                    </button>
+                    <button id="btnStop" class="py-2.5 px-4 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition active:scale-95">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>리셋</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Calculated Metrics Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
+                
+                <!-- Maximum Height -->
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-amber-500 flex justify-between items-center">
+                    <div>
+                        <div class="text-xs text-slate-400 font-medium">최고점 높이 (\(H\))</div>
+                        <div class="text-2xl font-black font-mono text-amber-400 mt-0.5" id="metricMaxHeight">0.00 <span class="text-sm font-normal text-slate-300">m</span></div>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400">
+                        <i class="fa-solid fa-arrows-up-down"></i>
+                    </div>
+                </div>
+
+                <!-- Total Range -->
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-blue-500 flex justify-between items-center">
+                    <div>
+                        <div class="text-xs text-slate-400 font-medium">수평 도달 거리 (\(R\))</div>
+                        <div class="text-2xl font-black font-mono text-blue-400 mt-0.5" id="metricRange">0.00 <span class="text-sm font-normal text-slate-300">m</span></div>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400">
+                        <i class="fa-solid fa-arrows-left-right"></i>
+                    </div>
+                </div>
+
+                <!-- Flight Time -->
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-emerald-500 flex justify-between items-center">
+                    <div>
+                        <div class="text-xs text-slate-400 font-medium">총 체공 시간 (\(T\))</div>
+                        <div class="text-2xl font-black font-mono text-emerald-400 mt-0.5" id="metricTime">0.00 <span class="text-sm font-normal text-slate-300">s</span></div>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                        <i class="fa-solid fa-stopwatch"></i>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- Right Simulation Canvas & Equations Column (8 cols) -->
+        <section class="lg:col-span-8 flex flex-col gap-5">
+            
+            <!-- Canvas Container -->
+            <div class="glass-panel p-4 rounded-2xl shadow-xl flex flex-col relative overflow-hidden">
+                <div class="flex justify-between items-center mb-3 px-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span class="text-sm font-bold text-slate-200">궤적 시각화 (Trajectory Canvas)</span>
+                    </div>
+                    <!-- Real-time dynamic values -->
+                    <div class="flex gap-4 font-mono text-xs bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
+                        <span class="text-slate-400">현재 시간 <span id="rtTime" class="text-emerald-400 font-bold">t = 0.00 s</span></span>
+                        <span class="text-slate-400">위치 <span id="rtPos" class="text-blue-400 font-bold">(0.0, 0.0) m</span></span>
+                    </div>
+                </div>
+
+                <!-- Interactive Canvas -->
+                <div class="relative w-full h-[360px] md:h-[420px] bg-slate-950/80 rounded-xl border border-slate-800 overflow-hidden">
+                    <canvas id="simCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+                </div>
+            </div>
+
+            <!-- Mathematical Explanation & Physics Principles Panel -->
+            <div class="glass-panel p-5 rounded-2xl shadow-xl space-y-4">
+                <h3 class="text-md font-bold text-indigo-300 border-b border-slate-700/80 pb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-square-root-variable text-indigo-400"></i>
+                    적용된 물리학 수식 및 정률 분석 (Physics Equations)
+                </h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs md:text-sm text-slate-300">
+                    <!-- Position Equation -->
+                    <div class="bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/50 space-y-2">
+                        <div class="font-semibold text-blue-300 flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                            시간(\(t\))에 따른 위치 방정식
+                        </div>
+                        <div class="font-mono bg-slate-900/80 p-2 rounded text-center text-slate-200">
+                            \[x(t) = v_0 \cos\theta \cdot t\]
+                            \[y(t) = v_0 \sin\theta \cdot t - \frac{1}{2}g t^2\]
+                        </div>
+                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                            수평 방향은 힘을 받지 않으므로 <b>등속도 운동</b>을 하고, 연직 방향은 중력(\(g\))을 받아 <b>등가속도 운동</b>을 합니다.
+                        </p>
+                    </div>
+
+                    <!-- Velocity Equation -->
+                    <div class="bg-slate-800/50 p-3.5 rounded-xl border border-slate-700/50 space-y-2">
+                        <div class="font-semibold text-amber-300 flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                            주요 운동 특성값 계산 공식
+                        </div>
+                        <div class="font-mono bg-slate-900/80 p-2 rounded text-center text-slate-200 text-xs">
+                            \[T = \frac{2 v_0 \sin\theta}{g} \quad (\text{체공 시간})\]
+                            \[H = \frac{(v_0 \sin\theta)^2}{2g} \quad (\text{최고점 높이})\]
+                            \[R = \frac{v_0^2 \sin(2\theta)}{g} \quad (\text{수평 도달 거리})\]
+                        </div>
+                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                            \(y(t) = 0\)일 때 체공 시간 \(T\)를 얻고, 최고점은 연직 속도 \(v_y = 0\)인 순간인 \(t = T/2\)에서 발생합니다.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="max-w-7xl w-full mx-auto mt-6 pt-3 border-t border-slate-800/80 text-center text-xs text-slate-500">
+        고등학교 물리학 탐구 학습용 포물선 운동 시뮬레이터 &bull; 단일 파일 웹 애플리케이션
+    </footer>
+
+    <script>
+        // Physics Constant
+        const G = 9.80665; // Gravity m/s^2
+
+        // Canvas Elements & Context
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Controls
+        const inputVelocity = document.getElementById('velocityInput');
+        const inputAngle = document.getElementById('angleInput');
+        const inputSpeed = document.getElementById('speedInput');
+
+        const valVelocity = document.getElementById('valVelocity');
+        const valAngle = document.getElementById('valAngle');
+        const valSpeed = document.getElementById('valSpeed');
+
+        const btnPlay = document.getElementById('btnPlay');
+        const btnPause = document.getElementById('btnPause');
+        const btnStop = document.getElementById('btnStop');
+        const btnResetParams = document.getElementById('btnResetParams');
+
+        const iconPlay = document.getElementById('iconPlay');
+        const txtPlay = document.getElementById('txtPlay');
+
+        // UI Metric Displays
+        const metricMaxHeight = document.getElementById('metricMaxHeight');
+        const metricRange = document.getElementById('metricRange');
+        const metricTime = document.getElementById('metricTime');
+        const rtTime = document.getElementById('rtTime');
+        const rtPos = document.getElementById('rtPos');
+
+        // Simulation State Variables
+        let v0 = parseFloat(inputVelocity.value);
+        let angleDeg = parseFloat(inputAngle.value);
+        let simSpeed = parseFloat(inputSpeed.value);
+
+        let currentTime = 0; // Simulated time in seconds
+        let isRunning = false;
+        let isPaused = false;
+        let animationFrameId = null;
+        let lastTimestamp = null;
+
+        // Visual Bounds & Scaling
+        let scale = 1; // pixels per meter
+        const margin = { top: 40, right: 40, bottom: 50, left: 60 };
+
+        // Math conversion helpers
+        const toRad = deg => (deg * Math.PI) / 180;
+
+        // Calculate analytical physics properties
+        function getPhysicsProperties() {
+            const rad = toRad(angleDeg);
+            const vx0 = v0 * Math.cos(rad);
+            const vy0 = v0 * Math.sin(rad);
+
+            // Time of Flight T = 2 * vy0 / g
+            const totalTime = (2 * vy0) / G;
+            // Max Height H = vy0^2 / (2g)
+            const maxHeight = (vy0 * vy0) / (2 * G);
+            // Range R = vx0 * T = v0^2 * sin(2*theta) / g
+            const range = vx0 * totalTime;
+
+            return { rad, vx0, vy0, totalTime, maxHeight, range };
+        }
+
+        // Calculate Position (x, y) at time t
+        function getPositionAt(t) {
+            const rad = toRad(angleDeg);
+            const x = v0 * Math.cos(rad) * t;
+            const y = v0 * Math.sin(rad) * t - 0.5 * G * t * t;
+            return { x: Math.max(0, x), y: Math.max(0, y) };
+        }
+
+        // Update Text Metrics Card Values
+        function updateMetricsUI() {
+            const { totalTime, maxHeight, range } = getPhysicsProperties();
+            metricMaxHeight.textContent = maxHeight.toFixed(2);
+            metricRange.textContent = range.toFixed(2);
+            metricTime.textContent = totalTime.toFixed(2);
+        }
+
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            draw();
+        }
+
+        // Map world coordinate (x in meters, y in meters) to Canvas pixel coordinate
+        function worldToCanvas(wx, wy) {
+            const displayWidth = canvas.width / window.devicePixelRatio;
+            const displayHeight = canvas.height / window.devicePixelRatio;
+
+            const cx = margin.left + wx * scale;
+            const cy = displayHeight - margin.bottom - wy * scale;
+            return { x: cx, y: cy };
+        }
+
+        // Compute optimal scale factor to fit maximum potential trajectory
+        function computeScale() {
+            const displayWidth = canvas.width / window.devicePixelRatio;
+            const displayHeight = canvas.height / window.devicePixelRatio;
+
+            const { range, maxHeight } = getPhysicsProperties();
+
+            // Maximum bounds with a safety margin (avoid 0 height or 0 range glitches)
+            const maxX = Math.max(range * 1.15, 10);
+            const maxY = Math.max(maxHeight * 1.25, 5);
+
+            const availableWidth = displayWidth - margin.left - margin.right;
+            const availableHeight = displayHeight - margin.top - margin.bottom;
+
+            const scaleX = availableWidth / maxX;
+            const scaleY = availableHeight / maxY;
+
+            // Choose uniform scaling
+            scale = Math.min(scaleX, scaleY);
+        }
+
+        function draw() {
+            const displayWidth = canvas.width / window.devicePixelRatio;
+            const displayHeight = canvas.height / window.devicePixelRatio;
+
+            // Clear Background
+            ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+            computeScale();
+
+            const { totalTime, maxHeight, range } = getPhysicsProperties();
+
+            // 1. Draw Grid Lines
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 4]);
+
+            // Vertical grid lines (distance x)
+            const xStep = Math.max(5, Math.pow(10, Math.floor(Math.log10(range || 10)))) / 2;
+            for (let x = 0; x <= range * 1.2; x += xStep) {
+                const p1 = worldToCanvas(x, 0);
+                const p2 = worldToCanvas(x, maxHeight * 1.3);
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            }
+
+            // Horizontal grid lines (height y)
+            const yStep = Math.max(2, Math.pow(10, Math.floor(Math.log10(maxHeight || 5)))) / 2;
+            for (let y = 0; y <= maxHeight * 1.3; y += yStep) {
+                const p1 = worldToCanvas(0, y);
+                const p2 = worldToCanvas(range * 1.2, y);
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+
+            // 2. Draw Main Axes
+            const origin = worldToCanvas(0, 0);
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 2;
+
+            // X axis
+            ctx.beginPath();
+            ctx.moveTo(margin.left - 10, origin.y);
+            ctx.lineTo(displayWidth - margin.right + 20, origin.y);
+            ctx.stroke();
+
+            // Y axis
+            ctx.beginPath();
+            ctx.moveTo(origin.x, displayHeight - margin.bottom + 10);
+            ctx.lineTo(origin.x, margin.top - 20);
+            ctx.stroke();
+
+            // Axes Labels & Units
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = '500 12px Pretendard, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText('수평 거리 x (m)', displayWidth - margin.right + 20, origin.y + 35);
+
+            ctx.textAlign = 'left';
+            ctx.fillText('연직 높이 y (m)', origin.x - 40, margin.top - 25);
+
+            // Tick Labels for Axes
+            ctx.fillStyle = '#64748b';
+            ctx.font = '10px monospace';
+
+            // X Axis Numbers
+            for (let x = 0; x <= range * 1.2; x += xStep) {
+                const p = worldToCanvas(x, 0);
+                ctx.textAlign = 'center';
+                ctx.fillText(x.toFixed(0), p.x, origin.y + 15);
+            }
+
+            // Y Axis Numbers
+            for (let y = 0; y <= maxHeight * 1.2; y += yStep) {
+                const p = worldToCanvas(0, y);
+                ctx.textAlign = 'right';
+                ctx.fillText(y.toFixed(0), origin.x - 8, p.y + 3);
+            }
+
+            // 3. Draw Complete Theoretical Trajectory Curve (Dotted Line)
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+
+            const sampleSteps = 100;
+            for (let i = 0; i <= sampleSteps; i++) {
+                const sampleT = (totalTime * i) / sampleSteps;
+                const pos = getPositionAt(sampleT);
+                const cp = worldToCanvas(pos.x, pos.y);
+                if (i === 0) ctx.moveTo(cp.x, cp.y);
+                else ctx.lineTo(cp.x, cp.y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 4. Highlight Theoretical Maximum Height & Range Points
+            const peakPos = getPositionAt(totalTime / 2);
+            const peakCanvas = worldToCanvas(peakPos.x, peakPos.y);
+
+            // Peak Marker
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(peakCanvas.x, peakCanvas.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fcd34d';
+            ctx.font = '11px Pretendard';
+            ctx.textAlign = 'center';
+            ctx.fillText(`최고점 (${peakPos.y.toFixed(1)}m)`, peakCanvas.x, peakCanvas.y - 10);
+
+            // Landing Point Marker
+            const endPos = getPositionAt(totalTime);
+            const endCanvas = worldToCanvas(endPos.x, endPos.y);
+            ctx.fillStyle = '#3b82f6';
+            ctx.beginPath();
+            ctx.arc(endCanvas.x, endCanvas.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#93c5fd';
+            ctx.fillText(`도달거리 (${endPos.x.toFixed(1)}m)`, endCanvas.x, endCanvas.y - 10);
+
+            // 5. Draw Animated Path (Solid Blue line up to currentTime)
+            if (currentTime > 0) {
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 3.5;
+                ctx.beginPath();
+
+                const currentSteps = Math.min(100, Math.ceil((currentTime / totalTime) * 100));
+                for (let i = 0; i <= currentSteps; i++) {
+                    const sampleT = Math.min(currentTime, (totalTime * i) / 100);
+                    const pos = getPositionAt(sampleT);
+                    const cp = worldToCanvas(pos.x, pos.y);
+                    if (i === 0) ctx.moveTo(cp.x, cp.y);
+                    else ctx.lineTo(cp.x, cp.y);
+                }
+                ctx.stroke();
+            }
+
+            // 6. Draw Moving Projectile Ball & Velocity Vector
+            const currentPos = getPositionAt(currentTime);
+            const ballCanvas = worldToCanvas(currentPos.x, currentPos.y);
+
+            // Velocity Vector Indicator
+            const currentVx = v0 * Math.cos(toRad(angleDeg));
+            const currentVy = v0 * Math.sin(toRad(angleDeg)) - G * currentTime;
+
+            if (currentTime <= totalTime) {
+                // Vector Arrow
+                const arrowScale = 0.8;
+                const arrowEnd = {
+                    x: ballCanvas.x + currentVx * arrowScale,
+                    y: ballCanvas.y - currentVy * arrowScale
+                };
+
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(ballCanvas.x, ballCanvas.y);
+                ctx.lineTo(arrowEnd.x, arrowEnd.y);
+                ctx.stroke();
+
+                // Ball Glow
+                const glowGradient = ctx.createRadialGradient(
+                    ballCanvas.x, ballCanvas.y, 2,
+                    ballCanvas.x, ballCanvas.y, 12
+                );
+                glowGradient.addColorStop(0, '#60a5fa');
+                glowGradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+                ctx.fillStyle = glowGradient;
+                ctx.beginPath();
+                ctx.arc(ballCanvas.x, ballCanvas.y, 12, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Ball Core
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(ballCanvas.x, ballCanvas.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#2563eb';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // Update Dynamic Real-time HUD Values
+            rtTime.textContent = `t = ${currentTime.toFixed(2)} s`;
+            rtPos.textContent = `(${currentPos.x.toFixed(1)}, ${currentPos.y.toFixed(1)}) m`;
+        }
+
+        function stepSimulation(timestamp) {
+            if (!lastTimestamp) lastTimestamp = timestamp;
+            const delta = (timestamp - lastTimestamp) / 1000; // seconds
+            lastTimestamp = timestamp;
+
+            if (isRunning && !isPaused) {
+                const { totalTime } = getPhysicsProperties();
+                currentTime += delta * simSpeed;
+
+                if (currentTime >= totalTime) {
+                    currentTime = totalTime;
+                    pauseSimulation();
+                }
+
+                draw();
+            }
+
+            if (isRunning) {
+                animationFrameId = requestAnimationFrame(stepSimulation);
+            }
+        }
+
+        function startSimulation() {
+            const { totalTime } = getPhysicsProperties();
+            if (currentTime >= totalTime) {
+                currentTime = 0;
+            }
+
+            isRunning = true;
+            isPaused = false;
+            lastTimestamp = null;
+
+            btnPlay.classList.replace('bg-blue-600', 'bg-amber-600');
+            btnPlay.classList.replace('hover:bg-blue-500', 'hover:bg-amber-500');
+            iconPlay.className = 'fa-solid fa-rotate-right';
+            txtPlay.textContent = '재발사';
+
+            btnPause.disabled = false;
+
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = requestAnimationFrame(stepSimulation);
+        }
+
+        function pauseSimulation() {
+            isPaused = true;
+            btnPause.disabled = true;
+        }
+
+        function togglePause() {
+            if (!isRunning) return;
+            isPaused = !isPaused;
+            btnPause.children[1].textContent = isPaused ? '계속' : '일시정지';
+            btnPause.children[0].className = isPaused ? 'fa-solid fa-play' : 'fa-solid fa-pause';
+            if (!isPaused) {
+                lastTimestamp = null;
+            }
+        }
+
+        function resetSimulation() {
+            isRunning = false;
+            isPaused = false;
+            currentTime = 0;
+            cancelAnimationFrame(animationFrameId);
+
+            btnPlay.classList.replace('bg-amber-600', 'bg-blue-600');
+            btnPlay.classList.replace('hover:bg-amber-500', 'hover:bg-blue-500');
+            iconPlay.className = 'fa-solid fa-play';
+            txtPlay.textContent = '발사';
+
+            btnPause.disabled = true;
+            btnPause.children[1].textContent = '일시정지';
+            btnPause.children[0].className = 'fa-solid fa-pause';
+
+            updateMetricsUI();
+            draw();
+        }
+
+        // Event Listeners for Sliders
+        inputVelocity.addEventListener('input', (e) => {
+            v0 = parseFloat(e.target.value);
+            valVelocity.textContent = v0;
+            resetSimulation();
+        });
+
+        inputAngle.addEventListener('input', (e) => {
+            angleDeg = parseFloat(e.target.value);
+            valAngle.textContent = angleDeg;
+            resetSimulation();
+        });
+
+        inputSpeed.addEventListener('input', (e) => {
+            simSpeed = parseFloat(e.target.value);
+            valSpeed.textContent = simSpeed.toFixed(1);
+        });
+
+        // Event Listeners for Buttons
+        btnPlay.addEventListener('click', () => {
+            if (isRunning && !isPaused) {
+                currentTime = 0;
+                startSimulation();
+            } else {
+                startSimulation();
+            }
+        });
+
+        btnPause.addEventListener('click', togglePause);
+        btnStop.addEventListener('click', resetSimulation);
+
+        btnResetParams.addEventListener('click', () => {
+            inputVelocity.value = 30;
+            inputAngle.value = 45;
+            inputSpeed.value = 1.0;
+
+            v0 = 30;
+            angleDeg = 45;
+            simSpeed = 1.0;
+
+            valVelocity.textContent = '30';
+            valAngle.textContent = '45';
+            valSpeed.textContent = '1.0';
+
+            resetSimulation();
+        });
+
+        // Window resize event handler
+        window.addEventListener('resize', resizeCanvas);
+
+        // Initial setup on page load
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            updateMetricsUI();
+            if (window.MathJax) {
+                MathJax.typesetPromise();
+            }
+        });
+    </script>
+</body>
+</html>
